@@ -523,7 +523,7 @@
      ===================================================== -->
 <div class="overlay" id="modal-overlay">
   <div class="modal">
-    <button class="modal-close" onclick="closeModal()">×</button>
+    <button class="modal-close" onclick="requestCloseModal()">×</button>
     <h2 id="modal-title">企業を追加</h2>
 
     <!-- ▼ セクション1：基本情報 -->
@@ -571,15 +571,18 @@
         </div>
         <div class="form-group">
           <label>月給（円）</label>
-          <input type="number" id="f-monthly_salary" placeholder="250000" />
+          <input type="number" id="f-monthly_salary" placeholder="250000" oninput="autoCalcTakeHome()" />
         </div>
         <div class="form-group">
           <label>初年度想定年収（円）</label>
           <input type="number" id="f-annual_income" placeholder="3500000" />
         </div>
         <div class="form-group">
-          <label>想定手取り額（円）</label>
-          <input type="number" id="f-take_home_pay" placeholder="2800000" />
+          <label>
+            想定手取り額（円）
+            <span style="font-weight:400; color:var(--muted);">（月給×75%で自動計算）</span>
+          </label>
+          <input type="number" id="f-take_home_pay" placeholder="2800000" oninput="takeHomeManuallyEdited = true" />
         </div>
         <div class="form-group span2">
           <label>各種手当（交通費・住宅・残業など）</label>
@@ -653,7 +656,7 @@
 
     <!-- フォームアクションボタン -->
     <div class="form-actions">
-      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+      <button class="btn-cancel" onclick="requestCloseModal()">キャンセル</button>
       <button class="btn-save" id="btn-save" onclick="saveCompany()">保存する</button>
     </div>
   </div>
@@ -676,6 +679,7 @@ let companies = [];           // 取得した企業データ（配列）
 let editingId = null;         // 編集中のレコードID（新規追加時はnull）
 let sortKey = 'created_at';   // 現在の並び替えキー
 let sortAsc = false;          // 昇順ならtrue、降順ならfalse
+let takeHomeManuallyEdited = false; // 想定手取り額が手動編集されたかどうか（自動計算の上書き防止用）
 
 // -------------------------------------------------------
 // Supabase クライアントを生成する（ページ全体で必ず1回だけ呼ぶ）
@@ -893,10 +897,39 @@ window.openModal = function openModal(id = null) {
   }
 }
 
-// モーダルを閉じる
+// モーダルを閉じる（確認なし・保存成功時など内部処理用）
 window.closeModal = function closeModal() {
   document.getElementById('modal-overlay').classList.remove('open');
   editingId = null;
+}
+
+// -------------------------------------------------------
+// ×ボタン・キャンセル・外側クリックから呼ばれる「閉じる」処理
+// フォームに何か入力されていれば確認ダイアログを出す
+// -------------------------------------------------------
+window.requestCloseModal = function requestCloseModal() {
+  if (isFormDirty()) {
+    const ok = confirm('入力内容が保存されていません。本当に閉じてもよいですか？');
+    if (!ok) return; // 「キャンセル」を選んだら閉じない
+  }
+  closeModal();
+}
+
+// フォームの主要項目に何か入力されているかチェックする
+// （企業名・メモ・各種数値項目のいずれかに値があれば「入力中」と判定）
+// ※ work_hours・employment_type・probation はデフォルト値が自動で入るため、
+//    それだけで「編集中」と誤判定しないよう対象から除外しています
+function isFormDirty() {
+  const fields = [
+    'company_name','industry','memo',
+    'base_salary','monthly_salary','annual_income','take_home_pay',
+    'allowances','bonus','work_location',
+    'holidays_per_year','paid_leave','benefits'
+  ];
+  return fields.some(f => {
+    const el = document.getElementById('f-' + f);
+    return el && el.value !== '';
+  });
 }
 
 // フォームの全フィールドをリセット
@@ -915,6 +948,11 @@ function clearForm() {
   // デフォルト値
   document.getElementById('f-wish_level').value = 'B';
   document.getElementById('f-status').value = '未応募';
+  document.getElementById('f-work_hours').value = '9:00〜18:00';
+  document.getElementById('f-employment_type').value = '正社員';
+  document.getElementById('f-probation').value = '3ヶ月';
+  // 手取り額の手動編集フラグもリセット（新規追加では自動計算を有効に戻す）
+  takeHomeManuallyEdited = false;
 }
 
 // フォームに企業データを流し込む
@@ -930,6 +968,29 @@ function fillForm(c) {
     const el = document.getElementById('f-' + f);
     if (el) el.value = (c[f] != null) ? c[f] : '';
   });
+  // 既存データを編集する場合、手取り額が既に入っているなら自動計算で上書きしない
+  takeHomeManuallyEdited = (c.take_home_pay != null);
+}
+
+// -------------------------------------------------------
+// 想定手取り額の自動計算（月給 × 75%）
+// -------------------------------------------------------
+// ★ 手取り額の欄をユーザーが直接編集した場合は、以後自動計算で
+//    上書きしないようにフラグ（takeHomeManuallyEdited）で管理しています。
+window.autoCalcTakeHome = function autoCalcTakeHome() {
+  if (takeHomeManuallyEdited) return; // 手動編集済みなら自動計算しない
+
+  const monthlyEl = document.getElementById('f-monthly_salary');
+  const takeHomeEl = document.getElementById('f-take_home_pay');
+  const monthly = Number(monthlyEl.value);
+
+  if (monthlyEl.value === '' || isNaN(monthly)) {
+    takeHomeEl.value = '';
+    return;
+  }
+
+  // 月給 × 0.75 を四捨五入して反映
+  takeHomeEl.value = Math.round(monthly * 0.75);
 }
 
 // -------------------------------------------------------
@@ -1041,7 +1102,7 @@ window.showToast = function showToast(msg, isError = false) {
 // モーダルの外側をクリックしたら閉じる
 // -------------------------------------------------------
 document.getElementById('modal-overlay').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
+  if (e.target === this) requestCloseModal();
 });
 
 // -------------------------------------------------------
