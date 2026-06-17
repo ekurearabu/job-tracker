@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>就活企業管理ツール</title>
+
+  <!-- =====================================================
+       Supabase JS Client（CDN版）の読み込み
+       ===================================================== -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    /* =====================================================
+       CSS カスタムプロパティ（色・フォントなど）
+       ===================================================== */
+    :root {
+      --bg:          #F7F8FA;       /* ページ背景 */
+      --surface:     #FFFFFF;       /* カード背景 */
+      --border:      #E2E6EA;       /* 枠線 */
+      --text:        #1A1D23;       /* 本文テキスト */
+      --muted:       #6B7280;       /* 補助テキスト */
+      --primary:     #2563EB;       /* メインカラー（青） */
+      --primary-lt:  #EFF6FF;       /* 薄い青（ホバー背景など） */
+      --danger:      #DC2626;       /* 削除ボタン */
+      --danger-lt:   #FEF2F2;
+      --success:     #16A34A;       /* 内定 */
+      --warn:        #D97706;       /* 最終面接など */
+      --radius:      10px;
+      --shadow:      0 1px 4px rgba(0,0,0,.08);
+    }
+
+    /* =====================================================
+       リセット & 基本設定
+       ===================================================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* =====================================================
+       ヘッダー
+       ===================================================== */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: .5px;
+      color: var(--primary);
+    }
+    .header-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-left: 8px;
+    }
+    #btn-add-header {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    #btn-add-header:hover { opacity: .85; }
+
+    /* =====================================================
+       設定パネル（Supabase接続情報入力欄）
+       ===================================================== */
+    #setup-panel {
+      max-width: 560px;
+      margin: 40px auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      box-shadow: var(--shadow);
+    }
+    #setup-panel h2 { font-size: 18px; margin-bottom: 8px; }
+    #setup-panel p { color: var(--muted); margin-bottom: 20px; font-size: 13px; }
+    #setup-panel label { display: block; font-weight: 600; margin-bottom: 4px; }
+    #setup-panel input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      margin-bottom: 14px;
+    }
+    #btn-connect {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+    }
+    #setup-error { color: var(--danger); font-size: 12px; margin-top: 10px; }
+
+    /* =====================================================
+       メインレイアウト
+       ===================================================== */
+    #app { display: none; }   /* 接続前は非表示 */
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px 16px; }
+
+    /* =====================================================
+       サマリーカード（上部の集計）
+       ===================================================== */
+    .summary-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .summary-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      text-align: center;
+    }
+    .summary-card .num { font-size: 26px; font-weight: 700; color: var(--primary); }
+    .summary-card .label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    /* =====================================================
+       フィルター・ソートバー
+       ===================================================== */
+    .filter-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .filter-bar label { font-size: 12px; color: var(--muted); margin-right: 4px; }
+    .filter-bar select, .filter-bar input[type="text"] {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 13px;
+      background: var(--bg);
+    }
+    #search-input { min-width: 180px; }
+
+    /* =====================================================
+       企業一覧テーブル
+       ===================================================== */
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow-x: auto;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      background: #F1F5F9;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-align: left;
+      padding: 10px 14px;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+    }
+    thead th:hover { color: var(--primary); }
+    tbody tr { border-top: 1px solid var(--border); transition: background .1s; }
+    tbody tr:hover { background: var(--primary-lt); }
+    tbody td { padding: 11px 14px; vertical-align: middle; white-space: nowrap; }
+
+    /* 志望度バッジ */
+    .badge-wish {
+      display: inline-block;
+      width: 26px; height: 26px;
+      line-height: 26px;
+      border-radius: 50%;
+      text-align: center;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .wish-S { background:#7C3AED; color:#fff; }
+    .wish-A { background:#2563EB; color:#fff; }
+    .wish-B { background:#0891B2; color:#fff; }
+    .wish-C { background:#6B7280; color:#fff; }
+    .wish-D { background:#D1D5DB; color:#374151; }
+
+    /* 選考ステータスバッジ */
+    .badge-status {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .status-未応募   { background:#F3F4F6; color:#6B7280; }
+    .status-説明会   { background:#EFF6FF; color:#3B82F6; }
+    .status-ES提出   { background:#F0FDF4; color:#16A34A; }
+    .status-一次面接 { background:#FFFBEB; color:#D97706; }
+    .status-二次面接 { background:#FFF7ED; color:#EA580C; }
+    .status-最終面接 { background:#FEF3C7; color:#B45309; }
+    .status-内定     { background:#DCFCE7; color:#15803D; }
+    .status-辞退     { background:#F3F4F6; color:#9CA3AF; }
+    .status-不合格     { background:#FEF2F2; color:#DC2626; }
+    .status-書類落ち   { background:#FEF2F2; color:#DC2626; }
+    .status-適性検査落ち { background:#FEF2F2; color:#DC2626; }
+    .status-一次面接落ち { background:#FEF2F2; color:#DC2626; }
+    .status-二次面接落ち { background:#FEF2F2; color:#DC2626; }
+    .status-最終面接落ち { background:#FEF2F2; color:#DC2626; }
+
+    /* アクションボタン */
+    .btn-edit, .btn-del {
+      border: none;
+      border-radius: 5px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-edit { background: var(--primary-lt); color: var(--primary); margin-right: 4px; }
+    .btn-edit:hover { background: #DBEAFE; }
+    .btn-del  { background: var(--danger-lt);  color: var(--danger);  }
+    .btn-del:hover  { background: #FEE2E2; }
+
+    /* 空状態 */
+    .empty-row td {
+      text-align: center;
+      color: var(--muted);
+      padding: 40px;
+      font-size: 13px;
+    }
+
+    /* =====================================================
+       モーダル（追加・編集フォーム）
+       ===================================================== */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      z-index: 200;
+      overflow-y: auto;
+      padding: 24px 12px;
+    }
+    .overlay.open { display: flex; align-items: flex-start; justify-content: center; }
+    .modal {
+      background: var(--surface);
+      border-radius: var(--radius);
+      width: 100%;
+      max-width: 720px;
+      padding: 28px 28px 24px;
+      position: relative;
+      box-shadow: 0 8px 32px rgba(0,0,0,.18);
+    }
+    .modal h2 { font-size: 17px; font-weight: 700; margin-bottom: 20px; }
+    .modal-close {
+      position: absolute;
+      top: 16px; right: 16px;
+      background: none;
+      border: none;
+      font-size: 22px;
+      cursor: pointer;
+      color: var(--muted);
+      line-height: 1;
+    }
+    .modal-close:hover { color: var(--text); }
+
+    /* フォームグリッド */
+    .form-section { margin-bottom: 20px; }
+    .form-section-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+      margin-bottom: 14px;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px 16px;
+    }
+    .form-grid.cols3 { grid-template-columns: 1fr 1fr 1fr; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-group.span2 { grid-column: span 2; }
+    .form-group.span3 { grid-column: span 3; }
+    .form-group label { font-size: 12px; font-weight: 600; color: var(--muted); }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      transition: border-color .15s;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .form-group textarea { resize: vertical; min-height: 70px; }
+
+    /* フォームのフッターボタン */
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .btn-cancel {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 18px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn-cancel:hover { background: var(--border); }
+    .btn-save {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 22px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-save:hover { opacity: .85; }
+    .btn-save:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* =====================================================
+       トースト（通知）
+       ===================================================== */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1A1D23;
+      color: #fff;
+      border-radius: 8px;
+      padding: 12px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 999;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity .2s, transform .2s;
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    /* =====================================================
+       ローディングスピナー
+       ===================================================== */
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid #fff;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* =====================================================
+       レスポンシブ対応
+       ===================================================== */
+    @media (max-width: 600px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .form-grid.cols3 { grid-template-columns: 1fr; }
+      .form-group.span2, .form-group.span3 { grid-column: span 1; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- =====================================================
+     ヘッダー
+     ===================================================== -->
+<header>
+  <div>
+    <span class="header-title">就活管理</span>
+    <span class="header-sub">JobTracker</span>
+  </div>
+  <button id="btn-add-header" onclick="openModal()">＋ 企業を追加</button>
+</header>
+
+<!-- =====================================================
+     初回セットアップパネル（Supabase接続情報入力）
+     接続後は非表示になります
+     ===================================================== -->
+<div id="setup-panel">
+  <h2>🔗 Supabase に接続する</h2>
+  <p>
+    Supabase プロジェクトの <strong>URL</strong> と <strong>anon key</strong> を入力してください。<br>
+    ※ 入力値はブラウザの localStorage に保存されます。
+  </p>
+  <label>Supabase URL</label>
+  <input id="input-url" type="text" placeholder="https://xxxxxxxxxxxx.supabase.co" />
+  <label>Supabase Anon Key</label>
+  <input id="input-key" type="text" placeholder="eyJhbGciOiJIUzI1NiIs..." />
+  <button id="btn-connect" onclick="connectSupabase()">接続する</button>
+  <div id="setup-error"></div>
+</div>
+
+<!-- =====================================================
+     メインアプリ本体（接続後に表示）
+     ===================================================== -->
+<div id="app">
+  <div class="container">
+
+    <!-- サマリー集計カード -->
+    <div class="summary-row" id="summary-row">
+      <!-- JavaScript で動的生成 -->
+    </div>
+
+    <!-- フィルター・検索バー -->
+    <div class="filter-bar">
+      <label>検索</label>
+      <input type="text" id="search-input" placeholder="企業名・メモで検索..." oninput="renderTable()" />
+
+      <label>ステータス</label>
+      <select id="filter-status" onchange="renderTable()">
+        <option value="">すべて</option>
+        <option>未応募</option>
+        <option>説明会</option>
+        <option>ES提出</option>
+        <option>一次面接</option>
+        <option>二次面接</option>
+        <option>最終面接</option>
+        <option>内定</option>
+        <option>辞退</option>
+        <option>不合格</option>
+        <optgroup label="── 不合格（詳細）──">
+          <option>書類落ち</option>
+          <option>適性検査落ち</option>
+          <option>一次面接落ち</option>
+          <option>二次面接落ち</option>
+          <option>最終面接落ち</option>
+        </optgroup>
+        <option value="__reject_all__">▼ 不合格系まとめて</option>
+      </select>
+
+      <label>志望度</label>
+      <select id="filter-wish" onchange="renderTable()">
+        <option value="">すべて</option>
+        <option>S</option>
+        <option>A</option>
+        <option>B</option>
+        <option>C</option>
+        <option>D</option>
+      </select>
+
+      <label>並び替え</label>
+      <select id="sort-key" onchange="renderTable()">
+        <option value="created_at">登録日順</option>
+        <option value="company_name">企業名順</option>
+        <option value="wish_level">志望度順</option>
+        <option value="status">ステータス順</option>
+        <option value="annual_income">年収順</option>
+      </select>
+    </div>
+
+    <!-- 企業一覧テーブル -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th onclick="toggleSort('company_name')">企業名 ↕</th>
+            <th onclick="toggleSort('industry')">業種 ↕</th>
+            <th onclick="toggleSort('wish_level')">志望度 ↕</th>
+            <th onclick="toggleSort('status')">ステータス ↕</th>
+            <th onclick="toggleSort('work_location')">勤務地 ↕</th>
+            <th onclick="toggleSort('annual_income')">初年度年収 ↕</th>
+            <th onclick="toggleSort('holidays_per_year')">年間休日 ↕</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <!-- JavaScript で動的生成 -->
+        </tbody>
+      </table>
+    </div>
+
+  </div><!-- /.container -->
+</div><!-- /#app -->
+
+<!-- =====================================================
+     企業追加・編集モーダル
+     ===================================================== -->
+<div class="overlay" id="modal-overlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h2 id="modal-title">企業を追加</h2>
+
+    <!-- ▼ セクション1：基本情報 -->
+    <div class="form-section">
+      <div class="form-section-title">基本情報</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>企業名 *</label>
+          <input type="text" id="f-company_name" placeholder="株式会社○○" />
+        </div>
+        <div class="form-group">
+          <label>業種</label>
+          <input type="text" id="f-industry" placeholder="IT・商社・メーカーなど" />
+        </div>
+        <div class="form-group">
+          <label>志望度</label>
+          <select id="f-wish_level">
+            <option>S</option><option>A</option><option selected>B</option><option>C</option><option>D</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>選考ステータス</label>
+          <select id="f-status">
+            <option>未応募</option><option>説明会</option><option>ES提出</option>
+            <option>一次面接</option><option>二次面接</option><option>最終面接</option>
+            <option>内定</option><option>辞退</option><option>不合格</option>
+            <option>書類落ち</option><option>適性検査落ち</option>
+            <option>一次面接落ち</option><option>二次面接落ち</option><option>最終面接落ち</option>
+          </select>
+        </div>
+        <div class="form-group span2">
+          <label>メモ（自由記述）</label>
+          <textarea id="f-memo" placeholder="面接の感想・企業の特徴など自由に記入..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- ▼ セクション2：給与・収入 -->
+    <div class="form-section">
+      <div class="form-section-title">給与・収入</div>
+      <div class="form-grid cols3">
+        <div class="form-group">
+          <label>基本給（円）</label>
+          <input type="number" id="f-base_salary" placeholder="200000" />
+        </div>
+        <div class="form-group">
+          <label>月給（円）</label>
+          <input type="number" id="f-monthly_salary" placeholder="250000" />
+        </div>
+        <div class="form-group">
+          <label>初年度想定年収（円）</label>
+          <input type="number" id="f-annual_income" placeholder="3500000" />
+        </div>
+        <div class="form-group">
+          <label>想定手取り額（円）</label>
+          <input type="number" id="f-take_home_pay" placeholder="2800000" />
+        </div>
+        <div class="form-group span2">
+          <label>各種手当（交通費・住宅・残業など）</label>
+          <input type="text" id="f-allowances" placeholder="交通費全額支給、住宅手当2万円/月" />
+        </div>
+        <div class="form-group span3">
+          <label>賞与・インセンティブ</label>
+          <input type="text" id="f-bonus" placeholder="年2回（6月・12月）、業績連動型ボーナスあり" />
+        </div>
+      </div>
+    </div>
+
+    <!-- ▼ セクション3：勤務条件 -->
+    <div class="form-section">
+      <div class="form-section-title">勤務条件</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>勤務地</label>
+          <input type="text" id="f-work_location" placeholder="東京都渋谷区" />
+        </div>
+        <div class="form-group">
+          <label>転勤の有無</label>
+          <select id="f-relocation">
+            <option></option>
+            <option>なし</option><option>あり</option><option>要相談</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>リモートワーク</label>
+          <select id="f-remote">
+            <option></option>
+            <option>フル</option><option>一部</option><option>なし</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>勤務時間・残業時間</label>
+          <input type="text" id="f-work_hours" placeholder="9:00〜18:00、残業20h/月程度" />
+        </div>
+        <div class="form-group">
+          <label>年間休日数</label>
+          <input type="number" id="f-holidays_per_year" placeholder="125" />
+        </div>
+        <div class="form-group">
+          <label>有給日数</label>
+          <input type="number" id="f-paid_leave" placeholder="20" />
+        </div>
+      </div>
+    </div>
+
+    <!-- ▼ セクション4：その他 -->
+    <div class="form-section">
+      <div class="form-section-title">雇用形態・福利厚生</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>雇用形態</label>
+          <select id="f-employment_type">
+            <option></option>
+            <option>正社員</option><option>契約社員</option><option>その他</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>試用期間</label>
+          <input type="text" id="f-probation" placeholder="3ヶ月（同条件）" />
+        </div>
+        <div class="form-group span2">
+          <label>福利厚生（社保・退職金など）</label>
+          <textarea id="f-benefits" placeholder="社会保険完備、退職金制度あり、財形貯蓄..." style="min-height:60px;"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- フォームアクションボタン -->
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+      <button class="btn-save" id="btn-save" onclick="saveCompany()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- =====================================================
+     トースト通知（保存・削除のフィードバック）
+     ===================================================== -->
+<div id="toast"></div>
+
+<!-- =====================================================
+     JavaScript：アプリのロジック
+     ===================================================== -->
+<script>
+// -------------------------------------------------------
+// グローバル変数
+// -------------------------------------------------------
+let _sb = null;               // Supabaseクライアント
+let companies = [];           // 取得した企業データ（配列）
+let editingId = null;         // 編集中のレコードID（新規追加時はnull）
+let sortKey = 'created_at';   // 現在の並び替えキー
+let sortAsc = false;          // 昇順ならtrue、降順ならfalse
+
+// -------------------------------------------------------
+// Supabase クライアントを生成する（ページ全体で必ず1回だけ呼ぶ）
+// -------------------------------------------------------
+// ★ createClient() を複数回呼ぶと「Multiple GoTrueClient」警告が出るため、
+//    _sb が null のときだけ作成し、以降は使い回します。
+function initSupabaseClient(url, key) {
+  if (_sb) return; // すでに作成済みなら何もしない（警告防止の核心）
+  _sb = window.supabase.createClient(url, key);
+}
+
+// -------------------------------------------------------
+// 接続ボタンを押したとき（手動接続）
+// -------------------------------------------------------
+// ★ window に登録して onclick="connectSupabase()" から呼べるようにしています
+window.connectSupabase = async function connectSupabase() {
+  const url = document.getElementById('input-url').value.trim();
+  const key = document.getElementById('input-key').value.trim();
+  const errEl = document.getElementById('setup-error');
+  errEl.textContent = '';
+
+  if (!url || !key) {
+    errEl.textContent = 'URLとAnon Keyを両方入力してください。';
+    return;
+  }
+
+  initSupabaseClient(url, key); // 未作成のときだけ createClient() が走る
+  await tryConnect(url, key);
+}
+
+// -------------------------------------------------------
+// 接続テストを実行してアプリを起動する（自動・手動で共通）
+// -------------------------------------------------------
+async function tryConnect(url, key) {
+  const errEl = document.getElementById('setup-error');
+  try {
+    // テーブルから1件取得してエラーがなければ接続成功
+    const { error } = await _sb
+      .from('companies')
+      .select('id')
+      .limit(1);
+
+    if (error) throw error;
+
+    localStorage.setItem('sb_url', url);
+    localStorage.setItem('sb_key', key);
+    showApp();
+    await loadCompanies();
+
+  } catch (e) {
+    _sb = null; // 失敗したらリセットして再入力できるようにする
+    if (errEl) errEl.textContent = `接続エラー: ${e.message}`;
+  }
+}
+
+// -------------------------------------------------------
+// アプリ画面を表示する
+// -------------------------------------------------------
+window.showApp = function showApp() {
+  document.getElementById('setup-panel').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+}
+
+// -------------------------------------------------------
+// Supabase から企業データをすべて取得する
+// -------------------------------------------------------
+window.loadCompanies = async function loadCompanies() {
+  const { data, error } = await _sb
+    .from('companies')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    showToast('データ取得エラー: ' + error.message, true);
+    return;
+  }
+
+  companies = data || [];
+  renderSummary();
+  renderTable();
+}
+
+// -------------------------------------------------------
+// 上部の集計カードを更新する
+// -------------------------------------------------------
+// 不合格系ステータスの一覧（サマリー集計・フィルターで共用）
+const REJECT_STATUSES = ['不合格','書類落ち','適性検査落ち','一次面接落ち','二次面接落ち','最終面接落ち'];
+
+window.renderSummary = function renderSummary() {
+  const items = [
+    { label: '登録企業数', num: companies.length },
+    { label: '内定',   num: companies.filter(c => c.status === '内定').length },
+    { label: '選考中', num: companies.filter(c =>
+        ['説明会','ES提出','一次面接','二次面接','最終面接'].includes(c.status)).length },
+    { label: '未応募', num: companies.filter(c => c.status === '未応募').length },
+    // 不合格系（「不合格」＋詳細5種）をまとめて集計
+    { label: '不合格（計）', num: companies.filter(c => REJECT_STATUSES.includes(c.status)).length },
+  ];
+
+  document.getElementById('summary-row').innerHTML = items.map(i => `
+    <div class="summary-card">
+      <div class="num">${i.num}</div>
+      <div class="label">${i.label}</div>
+    </div>
+  `).join('');
+}
+
+// -------------------------------------------------------
+// テーブルをフィルター・ソートして描画する
+// -------------------------------------------------------
+window.renderTable = function renderTable() {
+  const searchVal  = document.getElementById('search-input').value.toLowerCase();
+  const statusVal  = document.getElementById('filter-status').value;
+  const wishVal    = document.getElementById('filter-wish').value;
+  const sortKeyVal = document.getElementById('sort-key').value;
+
+  // フィルタリング
+  let filtered = companies.filter(c => {
+    const matchSearch = !searchVal ||
+      (c.company_name || '').toLowerCase().includes(searchVal) ||
+      (c.memo || '').toLowerCase().includes(searchVal);
+    // __reject_all__ が選ばれたときは不合格系すべてにマッチさせる
+    const matchStatus = !statusVal
+      || (statusVal === '__reject_all__' ? REJECT_STATUSES.includes(c.status) : c.status === statusVal);
+    const matchWish   = !wishVal   || c.wish_level === wishVal;
+    return matchSearch && matchStatus && matchWish;
+  });
+
+  // ソート
+  const wishOrder = { S:0, A:1, B:2, C:3, D:4 };
+  filtered.sort((a, b) => {
+    let va = a[sortKeyVal], vb = b[sortKeyVal];
+    if (sortKeyVal === 'wish_level') { va = wishOrder[va] ?? 9; vb = wishOrder[vb] ?? 9; }
+    if (va == null) va = '';
+    if (vb == null) vb = '';
+    if (typeof va === 'number' && typeof vb === 'number') return sortAsc ? va - vb : vb - va;
+    return sortAsc
+      ? String(va).localeCompare(String(vb), 'ja')
+      : String(vb).localeCompare(String(va), 'ja');
+  });
+
+  const tbody = document.getElementById('table-body');
+
+  // 件数ゼロの場合
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="8">該当する企業がありません。「企業を追加」から登録してください。</td></tr>`;
+    return;
+  }
+
+  // 行を生成
+  tbody.innerHTML = filtered.map(c => {
+    const statusClass = 'status-' + (c.status || '未応募');
+    const wishClass   = 'wish-' + (c.wish_level || 'B');
+    const income = c.annual_income ? `${(c.annual_income / 10000).toFixed(0)}万円` : '—';
+    const holidays = c.holidays_per_year ? `${c.holidays_per_year}日` : '—';
+
+    return `
+      <tr>
+        <td><strong>${esc(c.company_name)}</strong></td>
+        <td>${esc(c.industry) || '—'}</td>
+        <td><span class="badge-wish ${wishClass}">${esc(c.wish_level) || '—'}</span></td>
+        <td><span class="badge-status ${statusClass}">${esc(c.status) || '—'}</span></td>
+        <td>${esc(c.work_location) || '—'}</td>
+        <td>${income}</td>
+        <td>${holidays}</td>
+        <td>
+          <button class="btn-edit" onclick="openModal('${c.id}')">編集</button>
+          <button class="btn-del"  onclick="deleteCompany('${c.id}')">削除</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// HTML エスケープ（XSS対策）
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// -------------------------------------------------------
+// ソートキーのトグル（同じキーなら昇降順を反転）
+// -------------------------------------------------------
+window.toggleSort = function toggleSort(key) {
+  if (sortKey === key) {
+    sortAsc = !sortAsc;
+  } else {
+    sortKey = key;
+    sortAsc = true;
+  }
+  document.getElementById('sort-key').value = key;
+  renderTable();
+}
+
+// -------------------------------------------------------
+// モーダルを開く
+// id が渡された場合は「編集モード」、なければ「追加モード」
+// -------------------------------------------------------
+window.openModal = function openModal(id = null) {
+  editingId = id;
+  const modal = document.getElementById('modal-overlay');
+  modal.classList.add('open');
+
+  if (id) {
+    // 編集モード：既存データをフォームにセット
+    document.getElementById('modal-title').textContent = '企業を編集';
+    const c = companies.find(x => x.id === id);
+    if (c) fillForm(c);
+  } else {
+    // 追加モード：フォームをリセット
+    document.getElementById('modal-title').textContent = '企業を追加';
+    clearForm();
+  }
+}
+
+// モーダルを閉じる
+window.closeModal = function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  editingId = null;
+}
+
+// フォームの全フィールドをリセット
+function clearForm() {
+  const fields = [
+    'company_name','industry','wish_level','status','memo',
+    'base_salary','monthly_salary','annual_income','take_home_pay',
+    'allowances','bonus','work_location','relocation','remote',
+    'work_hours','holidays_per_year','paid_leave',
+    'employment_type','probation','benefits'
+  ];
+  fields.forEach(f => {
+    const el = document.getElementById('f-' + f);
+    if (el) el.value = (el.tagName === 'SELECT') ? (el.options[0]?.value || '') : '';
+  });
+  // デフォルト値
+  document.getElementById('f-wish_level').value = 'B';
+  document.getElementById('f-status').value = '未応募';
+}
+
+// フォームに企業データを流し込む
+function fillForm(c) {
+  const fields = [
+    'company_name','industry','wish_level','status','memo',
+    'base_salary','monthly_salary','annual_income','take_home_pay',
+    'allowances','bonus','work_location','relocation','remote',
+    'work_hours','holidays_per_year','paid_leave',
+    'employment_type','probation','benefits'
+  ];
+  fields.forEach(f => {
+    const el = document.getElementById('f-' + f);
+    if (el) el.value = (c[f] != null) ? c[f] : '';
+  });
+}
+
+// -------------------------------------------------------
+// フォームからデータを収集して Supabase に保存する
+// -------------------------------------------------------
+window.saveCompany = async function saveCompany() {
+  const name = document.getElementById('f-company_name').value.trim();
+  if (!name) {
+    alert('企業名を入力してください。');
+    return;
+  }
+
+  // ボタンを無効化してローディング表示
+  const btn = document.getElementById('btn-save');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  // フォームの値を集める
+  const payload = {
+    company_name:      document.getElementById('f-company_name').value.trim(),
+    industry:          document.getElementById('f-industry').value.trim() || null,
+    wish_level:        document.getElementById('f-wish_level').value,
+    status:            document.getElementById('f-status').value,
+    memo:              document.getElementById('f-memo').value.trim() || null,
+    base_salary:       toNum('f-base_salary'),
+    monthly_salary:    toNum('f-monthly_salary'),
+    annual_income:     toNum('f-annual_income'),
+    take_home_pay:     toNum('f-take_home_pay'),
+    allowances:        document.getElementById('f-allowances').value.trim() || null,
+    bonus:             document.getElementById('f-bonus').value.trim() || null,
+    work_location:     document.getElementById('f-work_location').value.trim() || null,
+    relocation:        document.getElementById('f-relocation').value || null,
+    remote:            document.getElementById('f-remote').value || null,
+    work_hours:        document.getElementById('f-work_hours').value.trim() || null,
+    holidays_per_year: toNum('f-holidays_per_year'),
+    paid_leave:        toNum('f-paid_leave'),
+    employment_type:   document.getElementById('f-employment_type').value || null,
+    probation:         document.getElementById('f-probation').value.trim() || null,
+    benefits:          document.getElementById('f-benefits').value.trim() || null,
+  };
+
+  let error;
+  if (editingId) {
+    // 更新（UPDATE）
+    ({ error } = await _sb
+      .from('companies')
+      .update(payload)
+      .eq('id', editingId));
+  } else {
+    // 新規追加（INSERT）
+    ({ error } = await _sb
+      .from('companies')
+      .insert([payload]));
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '保存する';
+
+  if (error) {
+    showToast('保存エラー: ' + error.message, true);
+    return;
+  }
+
+  showToast(editingId ? '企業情報を更新しました' : '企業を追加しました');
+  closeModal();
+  await loadCompanies();
+}
+
+// 数値フィールドの値を取得（空なら null）
+function toNum(id) {
+  const val = document.getElementById(id).value;
+  return val === '' ? null : Number(val);
+}
+
+// -------------------------------------------------------
+// 企業を削除する
+// -------------------------------------------------------
+window.deleteCompany = async function deleteCompany(id) {
+  const c = companies.find(x => x.id === id);
+  if (!confirm(`「${c?.company_name || ''}」を削除してもよいですか？`)) return;
+
+  // ★バグ修正：誤って "supabase" と書いていたのを "_sb" に修正
+  const { error } = await _sb
+    .from('companies')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    showToast('削除エラー: ' + error.message, true);
+    return;
+  }
+
+  showToast('企業を削除しました');
+  await loadCompanies();
+}
+
+// -------------------------------------------------------
+// トースト通知を表示する（2秒後に自動で消える）
+// -------------------------------------------------------
+window.showToast = function showToast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = isError ? '#DC2626' : '#1A1D23';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// -------------------------------------------------------
+// モーダルの外側をクリックしたら閉じる
+// -------------------------------------------------------
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// -------------------------------------------------------
+// ページ読み込み時：localStorageに接続情報があれば自動接続
+// -------------------------------------------------------
+(async function init() {
+  const url = localStorage.getItem('sb_url');
+  const key = localStorage.getItem('sb_key');
+
+  if (url && key) {
+    document.getElementById('input-url').value = url;
+    document.getElementById('input-key').value = key;
+
+    // ★ connectSupabase()（ボタン用）は呼ばず、ここで直接クライアントを作る。
+    //    こうすることで createClient() がページ全体で確実に1回だけ実行される。
+    initSupabaseClient(url, key);
+    await tryConnect(url, key);
+  }
+})();
+</script>
+</body>
+</html>
