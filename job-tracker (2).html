@@ -769,14 +769,20 @@ window.loadCompanies = async function loadCompanies() {
 const REJECT_STATUSES = ['不合格','書類落ち','適性検査落ち','一次面接落ち','二次面接落ち','最終面接落ち'];
 
 window.renderSummary = function renderSummary() {
+  const withdrawnCount = companies.filter(c => c.status === '辞退').length;
+  const notAppliedCount = companies.filter(c => c.status === '未応募').length;
+
   const items = [
     { label: '登録企業数', num: companies.length },
     { label: '内定',   num: companies.filter(c => c.status === '内定').length },
     { label: '選考中', num: companies.filter(c =>
         ['説明会','ES提出','一次面接','二次面接','最終面接'].includes(c.status)).length },
-    { label: '未応募', num: companies.filter(c => c.status === '未応募').length },
+    { label: '未応募', num: notAppliedCount },
     // 不合格系（「不合格」＋詳細5種）をまとめて集計
     { label: '不合格（計）', num: companies.filter(c => REJECT_STATUSES.includes(c.status)).length },
+    // エントリー済 = 登録企業数 − 辞退数 − 未応募数
+    { label: 'エントリー済', num: companies.length - withdrawnCount - notAppliedCount },
+    { label: '辞退数', num: withdrawnCount },
   ];
 
   document.getElementById('summary-row').innerHTML = items.map(i => `
