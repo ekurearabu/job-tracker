@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>駅比較ツール</title>
+<style>
+  :root {
+    --bg: #F5F4F0;
+    --surface: #FFFFFF;
+    --border: #E8E4DC;
+    --border-strong: #D4CEC2;
+    --text: #1C1A17;
+    --text-sub: #7A7468;
+    --gold: #B8912A;
+    --gold-light: #F7F1E3;
+    --gold-mid: #D4A843;
+    --gold-dark: #8A6A18;
+    --accent: #2C5282;
+    --accent-light: #EBF4FF;
+    --accent-hover: #1A3A63;
+    --shop-color: #4A3728;
+    --shop-light: #F5EEE8;
+    --danger: #C53030;
+    --danger-light: #FFF5F5;
+    --header-bg: #FAFAF8;
+    --col-commute-bg: #2C5282;
+    --col-commute-sub: #1A3A63;
+    --col-shop-bg: #6B4226;
+    --col-shop-sub: #4A2E1A;
+    --cell-x: #FEE8E8;
+    --cell-x-text: #B91C1C;
+    --shadow: 0 1px 6px rgba(0,0,0,0.06), 0 4px 20px rgba(0,0,0,0.04);
+    --radius: 10px;
+    --sort-active: #D4A843;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0 28px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    height: 60px;
+  }
+  .header-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+  }
+  .header-icon-wrap {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: var(--gold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+  header h1 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: 0.06em;
+  }
+  .header-divider {
+    width: 1px;
+    height: 18px;
+    background: var(--border-strong);
+    margin: 0 14px;
+  }
+  header .sub {
+    font-size: 0.75rem;
+    color: var(--text-sub);
+    font-weight: 400;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    padding: 12px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 14px;
+    border-radius: 7px;
+    border: 1px solid var(--border-strong);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    font-family: inherit;
+    letter-spacing: 0.02em;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary {
+    background: var(--gold);
+    color: #fff;
+    border-color: var(--gold-dark);
+  }
+  .btn-primary:hover { background: var(--gold-dark); }
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+  .btn-secondary:hover { background: var(--bg); }
+  .btn-danger {
+    background: var(--danger-light);
+    color: var(--danger);
+    border-color: #FECACA;
+  }
+  .btn-danger:hover { background: #FEE2E2; }
+  .btn-sm { padding: 5px 10px; font-size: 0.74rem; }
+
+  /* ── Main content ── */
+  .main {
+    padding: 20px 24px;
+    overflow-x: auto;
+  }
+
+  /* ── Table wrapper ── */
+  .table-wrap {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: auto;
+    border: 1px solid var(--border);
+  }
+
+  table {
+    border-collapse: collapse;
+    min-width: 100%;
+    white-space: nowrap;
+  }
+
+  /* ── Table header row 1: group labels ── */
+  thead tr:first-child th {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 9px 8px 6px;
+    text-align: center;
+    border-right: 1px solid rgba(255,255,255,0.12);
+    position: sticky;
+    top: 0;
+    color: rgba(255,255,255,0.92);
+  }
+  thead tr:first-child th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 20;
+    background: #2A2420;
+    color: rgba(255,255,255,0.9);
+  }
+  .group-station { background: #2A2420; }
+  .group-commute { background: var(--col-commute-bg); }
+  .group-shop    { background: var(--col-shop-bg); }
+
+  /* ── Table header row 2: column names ── */
+  thead tr:nth-child(2) th {
+    padding: 7px 12px 9px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+    border-right: 1px solid rgba(255,255,255,0.1);
+    position: sticky;
+    top: 34px;
+    transition: filter 0.12s;
+    min-width: 72px;
+    color: rgba(255,255,255,0.95);
+  }
+  thead tr:nth-child(2) th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 20;
+    min-width: 130px;
+    cursor: default;
+    background: #2A2420;
+    color: rgba(255,255,255,0.9);
+  }
+  .col-commute { background: var(--col-commute-sub); }
+  .col-shop    { background: var(--col-shop-sub); }
+  thead tr:nth-child(2) th.col-commute:hover,
+  thead tr:nth-child(2) th.col-shop:hover { filter: brightness(1.2); }
+
+  .sort-indicator {
+    display: inline-block;
+    margin-left: 4px;
+    font-size: 0.65rem;
+    opacity: 0.4;
+  }
+  .sort-indicator.active { opacity: 1; color: var(--sort-active); }
+
+  /* ── Table body ── */
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:nth-child(even) { background: #FDFCFA; }
+  tbody tr:hover { background: var(--gold-light) !important; }
+
+  td {
+    padding: 0;
+    border-right: 1px solid var(--border);
+    text-align: center;
+    vertical-align: middle;
+  }
+  td:first-child {
+    position: sticky;
+    left: 0;
+    background: var(--surface);
+    z-index: 5;
+    border-right: 2px solid var(--border-strong);
+    text-align: left;
+    padding: 0 10px;
+    min-width: 130px;
+  }
+  tbody tr:nth-child(even) td:first-child { background: #FDFCFA; }
+  tbody tr:hover td:first-child { background: var(--gold-light) !important; }
+
+  .station-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 0;
+  }
+  .station-name-text {
+    flex: 1;
+    font-weight: 600;
+    font-size: 0.86rem;
+    cursor: pointer;
+    padding: 3px 6px;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    outline: none;
+    background: transparent;
+    width: 100%;
+    min-width: 80px;
+    color: var(--text);
+    font-family: inherit;
+    letter-spacing: 0.02em;
+  }
+  .station-name-text:hover { border-color: var(--border-strong); background: var(--bg); }
+  .station-name-text:focus { border-color: var(--gold); background: #fff; }
+
+  /* editable cells */
+  .cell-input {
+    width: 100%;
+    height: 100%;
+    border: none;
+    outline: none;
+    text-align: center;
+    font-size: 0.86rem;
+    font-family: inherit;
+    color: var(--text);
+    background: transparent;
+    padding: 11px 6px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .cell-input:hover { background: var(--gold-light); }
+  .cell-input:focus {
+    background: #fff;
+    border-bottom-color: var(--gold);
+    cursor: text;
+  }
+  .cell-input.is-x {
+    background: var(--cell-x);
+    color: var(--cell-x-text);
+    font-weight: 700;
+  }
+  .cell-input.is-x:hover { background: #FECACA; }
+  .cell-input.is-x:focus { background: #fff; }
+
+  .delete-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #C9C3B8;
+    font-size: 0.95rem;
+    padding: 2px 4px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: color 0.12s, background 0.12s;
+    line-height: 1;
+    font-family: inherit;
+  }
+  .delete-btn:hover { color: var(--danger); background: var(--danger-light); }
+
+  /* ── Add row ── */
+  .add-row-area {
+    padding: 14px 24px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+  }
+  .add-row-input {
+    padding: 8px 14px;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 7px;
+    font-size: 0.84rem;
+    font-family: inherit;
+    outline: none;
+    width: 180px;
+    transition: border-color 0.12s;
+    color: var(--text);
+    background: var(--bg);
+  }
+  .add-row-input:focus { border-color: var(--gold); background: #fff; }
+
+  /* ── Column settings modal ── */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(28,26,23,0.5);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 26px;
+    width: min(500px, 95vw);
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.18), 0 0 0 1px var(--border);
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .modal-header h2 {
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .modal-badge {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 100px;
+    background: var(--gold-light);
+    color: var(--gold-dark);
+    font-weight: 700;
+    border: 1px solid #E8D9B0;
+  }
+  .modal-desc {
+    font-size: 0.79rem;
+    color: var(--text-sub);
+    margin-bottom: 18px;
+    line-height: 1.55;
+  }
+  .col-list { display: flex; flex-direction: column; gap: 7px; margin-bottom: 16px; }
+  .col-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .col-item .col-type-badge {
+    font-size: 0.68rem;
+    padding: 2px 7px;
+    border-radius: 100px;
+    font-weight: 700;
+    flex-shrink: 0;
+    letter-spacing: 0.03em;
+  }
+  .badge-commute { background: #EBF4FF; color: var(--accent); border: 1px solid #BEE3F8; }
+  .badge-shop    { background: var(--shop-light); color: var(--shop-color); border: 1px solid #E8D5C4; }
+  .col-item input {
+    flex: 1;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 5px 9px;
+    font-size: 0.82rem;
+    font-family: inherit;
+    outline: none;
+    color: var(--text);
+    background: #fff;
+  }
+  .col-item input:focus { border-color: var(--gold); }
+  .col-item .del-col-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #C9C3B8;
+    font-size: 0.9rem;
+    padding: 3px 6px;
+    border-radius: 5px;
+    font-family: inherit;
+    transition: color 0.12s, background 0.12s;
+  }
+  .col-item .del-col-btn:hover { color: var(--danger); background: var(--danger-light); }
+
+  .add-col-section {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+  .add-col-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-sub);
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+  }
+  .add-col-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .add-col-row select, .add-col-row input {
+    padding: 7px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    font-size: 0.81rem;
+    font-family: inherit;
+    outline: none;
+    color: var(--text);
+    background: #fff;
+  }
+  .add-col-row select:focus, .add-col-row input:focus { border-color: var(--gold); }
+
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding: 10px 24px;
+    font-size: 0.73rem;
+    color: var(--text-sub);
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    align-items: center;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #2A2420;
+    color: #F5EFE4;
+    padding: 10px 22px;
+    border-radius: 100px;
+    font-size: 0.81rem;
+    font-weight: 600;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.22);
+    z-index: 300;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    opacity: 0;
+    pointer-events: none;
+    letter-spacing: 0.02em;
+    border: 1px solid rgba(212,168,67,0.3);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  @media (max-width: 600px) {
+    .main { padding: 12px; }
+    .toolbar, .add-row-area, .legend { padding-left: 12px; padding-right: 12px; }
+    header { padding: 0 14px; }
+    header h1 { font-size: 0.9rem; }
+    .header-divider, header .sub { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-logo">
+    <div class="header-icon-wrap">🚉</div>
+    <h1>駅比較ツール</h1>
+    <div class="header-divider"></div>
+    <span class="sub">通勤時間・周辺施設を一覧で比較</span>
+  </div>
+</header>
+
+<div class="toolbar">
+  <button class="btn btn-secondary" onclick="openModal()">⚙️ 列の編集・追加</button>
+  <button class="btn btn-secondary" onclick="resetSort()">↕️ 並び替えリセット</button>
+  <button class="btn btn-danger btn-sm" onclick="clearAllData()" style="margin-left:auto">🗑️ 全データ削除</button>
+</div>
+
+<div class="main">
+  <div class="table-wrap">
+    <table id="mainTable">
+      <thead id="tableHead"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="add-row-area">
+  <input type="text" id="newStationInput" class="add-row-input" placeholder="駅名を入力（例：渋谷）" maxlength="20"
+    onkeydown="if(event.key==='Enter') addStation()">
+  <button class="btn btn-primary" onclick="addStation()">＋ 駅を追加</button>
+</div>
+
+<div class="legend">
+  <div class="legend-item">
+    <div class="legend-dot" style="background:var(--col-commute-bg)"></div>
+    <span>勤務地列：所要時間（分）</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:var(--col-shop-bg)"></div>
+    <span>施設列：徒歩時間（分）、なければ × を入力</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:var(--cell-x); border:1px solid #FECACA"></div>
+    <span>× = 施設なし</span>
+  </div>
+  <span style="margin-left:auto; font-size:0.7rem; color:#B0A898;">💾 自動保存</span>
+</div>
+
+<!-- Column settings modal -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>列の編集・追加</h2>
+      <span class="modal-badge">設定</span>
+    </div>
+    <p class="modal-desc">列名を自由に変更・削除できます。A〜E を実際の勤務地名に書き換えてください。</p>
+    <div class="col-list" id="colList"></div>
+    <div class="add-col-section">
+      <div class="add-col-label">新しい列を追加</div>
+      <div class="add-col-row">
+        <select id="newColType">
+          <option value="commute">勤務地（通勤時間）</option>
+          <option value="shop">施設（徒歩時間）</option>
+        </select>
+        <input type="text" id="newColName" placeholder="列名（例：F駅）" maxlength="10"
+          onkeydown="if(event.key==='Enter') addColumn()">
+        <button class="btn btn-primary btn-sm" onclick="addColumn()">＋ 追加</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">閉じる</button>
+      <button class="btn btn-primary" onclick="saveColumnsAndClose()">保存して閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DEFAULT_COLUMNS = [
+  { id: 'col_a',      name: 'A',    type: 'commute' },
+  { id: 'col_b',      name: 'B',    type: 'commute' },
+  { id: 'col_c',      name: 'C',    type: 'commute' },
+  { id: 'col_d',      name: 'D',    type: 'commute' },
+  { id: 'col_e',      name: 'E',    type: 'commute' },
+  { id: 'col_shinjuku',name: '新宿', type: 'commute' },
+  { id: 'col_ikebukuro',name:'池袋', type: 'commute' },
+  { id: 'col_tokyo',  name: '東京',  type: 'commute' },
+  { id: 'col_super',  name: 'スーパー', type: 'shop' },
+  { id: 'col_conbini',name: 'コンビニ', type: 'shop' },
+  { id: 'col_mac',    name: 'マック',   type: 'shop' },
+  { id: 'col_mister', name: 'ミスド',   type: 'shop' },
+  { id: 'col_burgerking',name:'バーキン',type: 'shop' },
+];
+const DEFAULT_STATIONS = [{ id: 's1', name: '○○駅', data: {} }];
+
+let columns = [], stations = [], sortCol = null, sortDir = 'asc';
+
+function save() {
+  localStorage.setItem('stationCompare_columns', JSON.stringify(columns));
+  localStorage.setItem('stationCompare_stations', JSON.stringify(stations));
+  localStorage.setItem('stationCompare_sort', JSON.stringify({ sortCol, sortDir }));
+}
+function load() {
+  const c = localStorage.getItem('stationCompare_columns');
+  const s = localStorage.getItem('stationCompare_stations');
+  const sr = localStorage.getItem('stationCompare_sort');
+  columns  = c  ? JSON.parse(c) : JSON.parse(JSON.stringify(DEFAULT_COLUMNS));
+  stations = s  ? JSON.parse(s) : JSON.parse(JSON.stringify(DEFAULT_STATIONS));
+  if (sr) { const p = JSON.parse(sr); sortCol = p.sortCol; sortDir = p.sortDir; }
+}
+
+function render() { renderHead(); renderBody(); }
+
+function renderHead() {
+  const head = document.getElementById('tableHead');
+  const commuteCount = columns.filter(c=>c.type==='commute').length;
+  const shopCount    = columns.filter(c=>c.type==='shop').length;
+  let r1 = `<tr>
+    <th class="group-station" rowspan="2" style="vertical-align:middle;min-width:130px;position:sticky;left:0;z-index:20;">駅名</th>
+    <th class="group-commute" colspan="${commuteCount}">🏢 勤務地（所要時間・分）</th>
+    <th class="group-shop"    colspan="${shopCount}">🏪 周辺施設（徒歩・分）</th>
+  </tr>`;
+  let r2 = '<tr>';
+  columns.forEach(col => {
+    const isActive = sortCol === col.id;
+    const arrow = isActive ? (sortDir==='asc' ? '▲' : '▼') : '⇅';
+    const cls = col.type === 'commute' ? 'col-commute' : 'col-shop';
+    r2 += `<th class="${cls}" onclick="toggleSort('${col.id}')" title="クリックで並び替え">
+      ${esc(col.name)}<span class="sort-indicator ${isActive?'active':''}">${arrow}</span>
+    </th>`;
+  });
+  r2 += '</tr>';
+  head.innerHTML = r1 + r2;
+}
+
+function getSortedStations() {
+  if (!sortCol) return [...stations];
+  return [...stations].sort((a, b) => {
+    const va = a.data[sortCol] ?? '', vb = b.data[sortCol] ?? '';
+    const isXa = va==='×'||va==='x'||va==='X', isXb = vb==='×'||vb==='x'||vb==='X';
+    if (isXa && isXb) return 0;
+    if (isXa) return 1; if (isXb) return -1;
+    const na = parseFloat(va), nb = parseFloat(vb);
+    const numA = isNaN(na), numB = isNaN(nb);
+    if (!numA && !numB) return sortDir==='asc' ? na-nb : nb-na;
+    if (numA && numB) return sortDir==='asc' ? va.localeCompare(vb,'ja') : vb.localeCompare(va,'ja');
+    return numA ? 1 : -1;
+  });
+}
+
+function renderBody() {
+  const body = document.getElementById('tableBody');
+  const sorted = getSortedStations();
+  body.innerHTML = sorted.map(st => {
+    let cells = columns.map(col => {
+      const val = st.data[col.id] ?? '';
+      const isX = val==='×'||val==='x'||val==='X';
+      return `<td><input class="cell-input ${isX?'is-x':''}" value="${esc(isX?'×':val)}"
+        data-station="${st.id}" data-col="${col.id}"
+        onchange="updateCell(this)" oninput="styleX(this)" title="クリックで編集"></td>`;
+    }).join('');
+    return `<tr><td>
+      <div class="station-name-cell">
+        <button class="delete-btn" onclick="deleteStation('${st.id}')" title="削除">✕</button>
+        <input class="station-name-text" value="${esc(st.name)}" data-station="${st.id}"
+          onchange="updateStationName(this)" title="クリックで駅名を編集" placeholder="駅名">
+      </div></td>${cells}</tr>`;
+  }).join('');
+}
+
+function styleX(input) {
+  const v = input.value.trim();
+  input.classList.toggle('is-x', v==='×'||v==='x'||v==='X');
+}
+function updateCell(input) {
+  const val = input.value.trim();
+  const normalized = (val==='x'||val==='X') ? '×' : val;
+  input.value = normalized;
+  const st = stations.find(s=>s.id===input.dataset.station);
+  if (st) { st.data[input.dataset.col] = normalized; save(); }
+  styleX(input);
+}
+function updateStationName(input) {
+  const st = stations.find(s=>s.id===input.dataset.station);
+  if (st) { st.name = input.value.trim()||'無題の駅'; save(); }
+}
+function addStation() {
+  const inp = document.getElementById('newStationInput');
+  const name = inp.value.trim();
+  if (!name) { showToast('駅名を入力してください'); inp.focus(); return; }
+  stations.push({ id: 's'+Date.now(), name, data: {} });
+  save(); render(); inp.value = '';
+  showToast(`「${name}」を追加しました`);
+}
+function deleteStation(id) {
+  const st = stations.find(s=>s.id===id);
+  if (!st) return;
+  if (!confirm(`「${st.name}」を削除しますか？`)) return;
+  stations = stations.filter(s=>s.id!==id);
+  save(); render();
+  showToast(`「${st.name}」を削除しました`);
+}
+function toggleSort(colId) {
+  sortDir = sortCol===colId ? (sortDir==='asc'?'desc':'asc') : 'asc';
+  sortCol = colId;
+  save(); render();
+}
+function resetSort() { sortCol=null; sortDir='asc'; save(); render(); showToast('並び替えをリセットしました'); }
+
+function openModal() { renderColList(); document.getElementById('modalBackdrop').classList.add('open'); }
+function closeModal() { document.getElementById('modalBackdrop').classList.remove('open'); }
+
+function renderColList() {
+  document.getElementById('colList').innerHTML = columns.map((col, i) => {
+    const badge = col.type==='commute'
+      ? '<span class="col-type-badge badge-commute">勤務地</span>'
+      : '<span class="col-type-badge badge-shop">施設</span>';
+    return `<div class="col-item">
+      ${badge}
+      <input type="text" value="${esc(col.name)}" maxlength="10"
+        onchange="tempRenameCol(${i}, this.value)" placeholder="列名">
+      <button class="del-col-btn" onclick="removeCol(${i})" title="削除">✕</button>
+    </div>`;
+  }).join('');
+}
+
+let tempColNames = [];
+function tempRenameCol(idx, val) { tempColNames[idx] = val.trim() || columns[idx].name; }
+function removeCol(idx) {
+  const col = columns[idx];
+  if (!confirm(`列「${col.name}」を削除しますか？\nこの列のデータはすべて失われます。`)) return;
+  columns.splice(idx, 1);
+  stations.forEach(st => delete st.data[col.id]);
+  save(); renderColList();
+}
+function addColumn() {
+  const type = document.getElementById('newColType').value;
+  const name = document.getElementById('newColName').value.trim();
+  if (!name) { showToast('列名を入力してください'); return; }
+  columns.push({ id: 'col_'+Date.now(), name, type });
+  save(); document.getElementById('newColName').value = '';
+  renderColList(); showToast(`「${name}」列を追加しました`);
+}
+function saveColumnsAndClose() {
+  tempColNames.forEach((name, i) => { if (columns[i]) columns[i].name = name; });
+  tempColNames = [];
+  save(); render(); closeModal();
+  showToast('列設定を保存しました');
+}
+function clearAllData() {
+  if (!confirm('すべてのデータを削除してリセットしますか？\nこの操作は取り消せません。')) return;
+  columns = JSON.parse(JSON.stringify(DEFAULT_COLUMNS));
+  stations = JSON.parse(JSON.stringify(DEFAULT_STATIONS));
+  sortCol=null; sortDir='asc';
+  save(); render(); showToast('データをリセットしました');
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2300);
+}
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+document.getElementById('modalBackdrop').addEventListener('click', function(e) {
+  if (e.target===this) closeModal();
+});
+
+load(); render();
+</script>
+</body>
+</html>
