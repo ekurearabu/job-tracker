@@ -504,7 +504,7 @@
             <th onclick="toggleSort('wish_level')">志望度 ↕</th>
             <th onclick="toggleSort('status')">ステータス ↕</th>
             <th onclick="toggleSort('work_location')">勤務地 ↕</th>
-            <th onclick="toggleSort('annual_income')">初年度年収 ↕</th>
+            <th onclick="toggleSort('annual_income')">将来想定年収 ↕</th>
             <th onclick="toggleSort('holidays_per_year')">年間休日 ↕</th>
             <th>操作</th>
           </tr>
@@ -574,7 +574,7 @@
           <input type="number" id="f-monthly_salary" placeholder="250000" oninput="autoCalcTakeHome()" />
         </div>
         <div class="form-group">
-          <label>初年度想定年収（円）</label>
+          <label>将来想定年収（円）</label>
           <input type="number" id="f-annual_income" placeholder="3500000" />
         </div>
         <div class="form-group">
@@ -774,15 +774,15 @@ window.renderSummary = function renderSummary() {
 
   const items = [
     { label: '登録企業数', num: companies.length },
-    { label: '内定',   num: companies.filter(c => c.status === '内定').length },
+    { label: '未応募', num: notAppliedCount },
     { label: '選考中', num: companies.filter(c =>
         ['説明会','ES提出','一次面接','二次面接','最終面接'].includes(c.status)).length },
-    { label: '未応募', num: notAppliedCount },
-    // 不合格系（「不合格」＋詳細5種）をまとめて集計
-    { label: '不合格（計）', num: companies.filter(c => REJECT_STATUSES.includes(c.status)).length },
+    { label: '辞退数', num: withdrawnCount },
     // エントリー済 = 登録企業数 − 辞退数 − 未応募数
     { label: 'エントリー済', num: companies.length - withdrawnCount - notAppliedCount },
-    { label: '辞退数', num: withdrawnCount },
+    // 不合格系（「不合格」＋詳細5種）をまとめて集計
+    { label: '不合格（計）', num: companies.filter(c => REJECT_STATUSES.includes(c.status)).length },
+    { label: '内定',   num: companies.filter(c => c.status === '内定').length },
   ];
 
   document.getElementById('summary-row').innerHTML = items.map(i => `
